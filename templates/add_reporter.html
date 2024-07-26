@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Reporter{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-5">Add Reporter</h1>
+    <form method="post">
+        <div class="form-group">
+            <label for="reporter_name">Reporter Name</label>
+            <input type="text" class="form-control" id="reporter_name" name="reporter_name" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Reporter</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}Scrap Gem Report Form{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Scrap Gem Form</h1><br>
+    <form method="POST" action="{{ url_for('submit') }}">  <!-- change back to submit after test -->
+        <div class="form-group row">
+            <div class="col-md-4">
+                <label for="report_date"><strong>Date</strong></label>
+                <input type="date" class="form-control" id="report_date" name="report_date" value="{{ today_date }}">
+            </div>
+            <div class="col-md-4">
+                <label for="reporter"><strong>Reporter</strong></label>
+                <select class="form-control" id="reporter" name="reporter">
+                    {% for reporter in reporters %}
+                        <option value="{{ reporter.id }}">{{ reporter.reporter_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="department"><strong>Department</strong></label>
+                <select class="form-control" id="department" name="department">
+                    {% for department in departments %}
+                        <option value="{{ department.id }}">{{ department.dept_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Items Section -->
+        <table class="table table-sm" id="report_items">
+            <thead>
+            </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <input type="text" class="form-control narrow-input item-search" placeholder="Search Item" autocomplete="off">
+                            <input type="hidden" name="item_ids" class="item-id"> <!-- Hidden input to store item_id -->
+                            <div class="item-suggestions"></div>
+                        </td>
+                        <td><input type="text" class="form-control narrow-input alt_sku" readonly></td>
+                        <td><input type="text" class="form-control wide-input description" readonly></td>
+                        <td><input type="number" class="form-control narrow-input quantity" name="quantity" style="font-size: 0.8rem;" required></td>
+                        <td>
+                            <select class="form-control wide-input note" name="note" required>
+                                <option value="Broken">Broken</option>
+                                <option value="Lost">Lost</option>
+                                <option value="Unfit">Unfit</option>
+                                <option value="Wrong Color">Wrong Color</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </td>
+                        <td><button type="button" class="btn btn-danger remove-row"><i class="fas fa-trash-alt"></i></button></td>
+                    </tr>
+                </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary" id="add_row">Add Row</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+</div>
+<style>
+    .item-search, .alt_sku, .description, .note, .remove-row, .item-suggestions  {
+        font-size: 0.8rem; /* Adjust this size as needed to make it one size smaller */
+    }
+    .quantity {
+        font-size: 0.8rem;
+    }
+    #report_items {
+        font-size: 0.9rem; /* Adjust this size as needed to make it one size smaller */
+        border-collapse: collapse; /* Make sure borders are not doubled */
+        width: 100%; /* Ensure table takes full width */
+    }
+    #report_items th, #report_items td {
+        border: 1px solid #ddd; /* Add border lines to table cells */
+        padding: 8px; /* Add some padding */
+    }
+    #report_items thead {
+        background-color: #f0f0f0; /* Light grey background for the header */
+    }
+    #report_items tbody tr {
+        background-color: #fafafa; /* Lighter background for the table rows */
+    }
+    .sku-column {
+        width: 20%; /* Item Name column */
+    }
+    .alt-sku-column {
+        width: 12%; /* Alt. SKU column */
+    }
+    .wide-column {
+        width: 36%; /* Description column */
+    }
+    .narrow-column {
+        width: 8%; /* Unit Cost, Quantity, Unit, Inventory columns */
+    }
+    .remove-column {
+        width: 5%; /* Del column */
+    }
+    .item-suggestions {
+        background-color: white;
+        border: 1px solid #ccc;
+        max-height: 150px;
+        overflow-y: auto;
+        position: absolute;
+        width: calc(10% - 30px);
+        z-index: 1000;
+        margin: 0;  /* Remove default margin */
+        padding: 0;  /* Remove default padding */
+        box-sizing: border-box; /* Ensure padding and border are included in the element's total width and height */
+    }
+    .item-suggestion {
+        padding: 8px;
+        cursor: pointer;
+    }
+    .item-suggestion:hover {
+        background-color: #f0f0f0;
+    }
+    .half-width {
+        width: 20%;
+    }
+</style>
+<!-- Font Awesome CDN -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+$(document).ready(function() {
+
+    // Update department fields when a department is selected
+    $('#department').change(function() {
+        let selectedDepartment = $(this).find(':selected');
+        $('#department_id').val(selectedDepartment.data('department-id'));
+        $('#department_name').val(selectedDepartment.data('name'));
+    });
+
+    // Function to update item rows
+    function updateRow(row, item) {
+        row.find('.alt_sku').val(item.data('alt_sku'));
+        row.find('.description').val(item.data('description'));
+    }
+
+    $(document).on('input', '.item-search', function() {
+        let query = $(this).val().toLowerCase();
+        let suggestions = $(this).siblings('.item-suggestions');
+        if (query.length > 1) {
+            let matches = items.filter(item => item.item_name.toLowerCase().includes(query));
+            suggestions.empty();
+            matches.forEach(match => {
+                suggestions.append(`<div class="item-suggestion" data-id="${match.id}" data-alt_sku="${match.alt_sku}" data-description="${match.description}">${match.item_name}</div>`);
+            });
+            suggestions.show();
+        } else {
+            suggestions.empty();
+            suggestions.hide();
+        }
+    });
+
+    $(document).on('click', '.item-suggestion', function() {
+        let suggestion = $(this);
+        let row = suggestion.closest('tr');
+        row.find('.item-search').val(suggestion.text());
+        row.find('.item-id').val(suggestion.data('id'));  // Set the item ID
+        updateRow(row, suggestion);
+        suggestion.parent().empty().hide();
+    });
+
+    $('#add_row').click(function() {
+        let newRow = $('#report_items tbody tr:first').clone();
+        newRow.find('input').val('');
+        newRow.find('.remove-row').click(function() {
+            $(this).closest('tr').remove();
+        });
+        $('#report_items tbody').append(newRow);
+    });
+
+    $('.remove-row').click(function() {
+        $(this).closest('tr').remove();
+    });
+});
+
+// Fetch items data
+let items = [];
+$.ajax({
+    url: '{{ url_for("get_items") }}',  // Endpoint to fetch items data
+    method: 'GET',
+    success: function(data) {
+        items = data.items;
+    },
+    error: function(error) {
+        console.error('Error fetching items:', error);
+    }
+});
+</script>
+{% endblock %}

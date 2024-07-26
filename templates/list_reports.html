@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Scrap Gem List{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-5">Scrap Gem List</h1>
+    <br>
+
+        <!-- Form for Sorting Options -->
+    <form method="GET" action="{{ url_for('list_reports') }}">
+        <div class="form-group">
+            <label><strong>Sort by:</strong></label><br>
+            <label class="radio-inline">
+                <input type="radio" name="sort_by" value="report_number" {% if sort_by == 'report_number' %}checked{% endif %}> Report Number
+            </label>
+            <label class="radio-inline">
+                <input type="radio" name="sort_by" value="date" {% if sort_by == 'date' %}checked{% endif %}> Date
+            </label>
+            <label class="radio-inline">
+                <input type="radio" name="sort_by" value="reporter" {% if sort_by == 'reporter' %}checked{% endif %}> Reporter
+            </label>
+            <label class="radio-inline">
+                <input type="radio" name="sort_by" value="department" {% if sort_by == 'department' %}checked{% endif %}> Department
+            </label>
+            <label class="radio-inline">
+                <input type="radio" name="sort_by" value="total_quantity" {% if sort_by == 'total_quantity' %}checked{% endif %}> Total Quantity
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label><strong>Order:</strong></label><br>
+            <label class="radio-inline">
+                <input type="radio" name="order" value="asc" {% if order == 'asc' %}checked{% endif %}> Ascending
+            </label>
+            <label class="radio-inline">
+                <input type="radio" name="order" value="desc" {% if order == 'desc' %}checked{% endif %}> Descending
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </form>
+
+    <br>
+
+    <table class="table" id="report_list">
+        <thead>
+            <tr>
+                <th>Action</th>
+                <th>Report Number</th>
+                <th>Date</th>
+                <th>Reporter</th>
+                <th>Department</th>
+                <th>Type of Gems</th>
+                <th>Total Quantity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report, num_items, total_quantity in reports %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('view_report_details', report_id=report.id) }}" class="btn btn-primary btn-sm">View Details</a>
+                    </td>
+                    <td>{{ report.id }}</td>
+                    <td>{{ report.date.strftime('%m/%d/%Y') }}</td>
+                    <td>{{ report.reporter.reporter_name if report.reporter else 'Unknown Reporter' }}</td>
+                    <td>{{ report.department.dept_name if report.department else 'Unknown Department' }}</td>
+                    <td>{{ report.report_details|length }}</td>
+                    <td>{{ report.report_details|sum(attribute='quantity') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    #report_list {
+        width: 100%;
+        border-collapse: collapse; /* Ensure borders are not doubled */
+    }
+    #report_list th, #report_list td {
+        border: 1px solid #ddd; /* Add border lines to table cells */
+        padding: 8px; /* Add some padding */
+    }
+    #report_list thead {
+        background-color: #f0f0f0; /* Light grey background for the header */
+    }
+    #report_list tbody tr {
+        background-color: #fafafa; /* Lighter background for the table rows */
+    }
+</style>
+
+{% endblock %}

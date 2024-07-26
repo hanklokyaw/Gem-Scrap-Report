@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporter List{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-5">Reporter List</h1>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Reporter Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reporter in reporters %}
+            <tr>
+                <td>{{ reporter.id }}</td>
+                <td>{{ reporter.reporter_name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
