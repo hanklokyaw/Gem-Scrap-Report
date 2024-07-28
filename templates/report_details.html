@@ -9,8 +9,8 @@
             <h1 style="white-space: nowrap;">Scrap Gem Report Detail</h1><br>
             <p><strong>Report Number:</strong> {{ report.id }}</p>
             <p><strong>Date:</strong> {{ report.date.strftime('%Y-%m-%d') }}</p>
-            <p><strong>Reporter:</strong> {{ report.reporter.name if report.reporter else 'Unknown Reporter' }}</p>
-            <p><strong>Department:</strong> {{ report.department.name if report.department else 'Unknown Department' }}</p>
+            <p><strong>Reporter:</strong> {{ report.reporter.reporter_name if report.reporter else 'Unknown Reporter' }}</p>
+            <p><strong>Department:</strong> {{ report.department.dept_name if report.department else 'Unknown Department' }}</p>
         </div>
     </div>
     <table class="table mt-3" id="report_details">
