@@ -6,7 +6,7 @@ from config import Config
 from decimal import Decimal
 from sqlalchemy import func
 import logging
-import pandas as pd
+import csv
 import io
 import sqlite3
 
@@ -284,42 +284,58 @@ def edit(report_id):
 def download():
     if request.method == 'POST':
         password = request.form.get('password')
-        if check_password_hash(PASSWORD_HASH, password):
-            # Connect to the database
-            conn = sqlite3.connect('your_database.db')  # Update with your database path
-            query = """
-            SELECT details."report_id" AS "Report ID",
-                    items."item_name" AS "Item",
-                    items."alt_sku" AS "Old SKU",
-                    items."description" AS "Description",
-                    details."quantity" AS "Quantity",
-                    details."note" AS "Note",
-                    netsuite_upload."netsuite_update" AS "Netsuite Adj. File Downloaded"
-            FROM report_details AS details
-            LEFT JOIN items
-            ON details."item_id" = items."id"
-            LEFT JOIN netsuite_upload
-            ON details."id" = netsuite_upload."report_details_id"
-            WHERE netsuite_upload."netsuite_update" = 0
-            ;
-            """
-            df = pd.read_sql_query(query, conn)
-            conn.close()
 
-            # Convert dataframe to CSV
+        # Check password hash
+        if not check_password_hash(PASSWORD_HASH, password):
+            return "Invalid password", 403
+
+        # SQL query to fetch data
+        query = text("""
+        SELECT details."report_id" AS "Report ID",
+               reports."date" AS "Date",
+               items."item_name" AS "Item",
+               items."alt_sku" AS "Old SKU",
+               items."description" AS "Description",
+               departments."dept_name" AS "Department",
+               details."quantity" AS "Quantity",
+               details."note" AS "Note",
+               netsuite_upload."netsuite_update" AS "Netsuite Adj. File Downloaded"
+        FROM report_details AS details
+        LEFT JOIN reports
+        ON reports."id" = details."report_id"
+        LEFT JOIN items
+        ON details."item_id" = items."id"
+        LEFT JOIN departments
+        ON reports."dept_id" = departments."id"
+        LEFT JOIN netsuite_upload
+        ON details."id" = netsuite_upload."report_details_id"
+        WHERE netsuite_upload."netsuite_update" = 0;
+        """)
+
+        # Execute query and fetch results
+        with db.session.connection() as conn:
+            result = conn.execute(query)
+            columns = result.keys()
+            rows = result.fetchall()
+
+            # Create CSV in-memory
             output = io.StringIO()
-            df.to_csv(output, index=False)
+            writer = csv.writer(output)
+            writer.writerow(columns)  # Write header
+            writer.writerows(rows)    # Write data
             output.seek(0)
 
-            # Mark the records as updated in the database
-            conn = sqlite3.connect('your_database.db')
-            conn.execute('UPDATE netsuite_upload SET netsuite_update = 1 WHERE netsuite_update = 0')
-            conn.commit()
-            conn.close()
+            # Update netsuite_upload table
+            update_query = text("""
+            UPDATE netsuite_upload
+            SET netsuite_update = 1
+            WHERE netsuite_update = 0
+            """)
+            conn.execute(update_query)
+            db.session.commit()
 
-            return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', attachment_filename='report.csv', as_attachment=True)
-        else:
-            return 'Invalid password', 403
+        # Send CSV file as download
+        return send_file(io.BytesIO(output.getvalue().encode()), download_name='report_details.csv', as_attachment=True)
 
     return render_template('download.html')
 
