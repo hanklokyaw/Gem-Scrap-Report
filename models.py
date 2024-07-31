@@ -39,3 +39,9 @@ class ReportDetails(db.Model):
     # Define relationship to Items model
     item = db.relationship('Items', backref='report_details', lazy=True)
 
+
+class NetSuiteUpload(db.Model):
+    __tablename__ = 'netsuite_upload'  # Ensure this matches the table name in the database
+    id = db.Column(db.Integer, primary_key=True)
+    report_details_id = db.Column(db.Integer, db.ForeignKey('report_details.id'))
+    netsuite_update = db.Column(db.Integer, default=0, nullable=False)

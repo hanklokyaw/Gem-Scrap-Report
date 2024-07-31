@@ -1,16 +1,23 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from datetime import date, datetime
 from models import db, Departments, Reporters, Items, Reports, ReportDetails
+from werkzeug.security import check_password_hash, generate_password_hash
 from config import Config
 from decimal import Decimal
 from sqlalchemy import func
 import logging
+import pandas as pd
+import io
+import sqlite3
 
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 app.config.from_object(Config)
 db.init_app(app)
+
+# Dummy password hash for example purposes
+PASSWORD_HASH = generate_password_hash('Hak@5624586822')  # Replace with your hashed password
 
 # @app.before_first_request
 # def create_tables():
@@ -140,11 +147,15 @@ def get_items():
     } for item in items]
     return jsonify({'items': items_data})
 
+
+from sqlalchemy.sql import text
+
+
 @app.route('/submit', methods=['POST'])
 def submit():
     report_date_str = request.form.get('report_date')
     try:
-        report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()  # Updated format
+        report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
     except ValueError:
         report_date = datetime.strptime(report_date_str, '%m/%d/%Y').date()
     reporter_id = request.form.get('reporter')
@@ -156,23 +167,38 @@ def submit():
     db.session.commit()
 
     items = request.form.getlist('item_ids')
-    print(items)  # Debug: Print received item_ids
     quantities = request.form.getlist('quantity')
-    print(quantities)  # Debug: Print received quantities
     notes = request.form.getlist('note')
-    print(notes)  # Debug: Print received purchase_prices
 
-    for item_id, quantity_str, note in zip(items, quantities, notes):
-        quantity = int(quantity_str)
+    # Initialize the list to store IDs of the newly created report_details
+    report_details_ids = []
+
+    # Add ReportDetails entries and collect their IDs
+    for i in range(len(items)):
+        item_id = items[i]
+        quantity = int(quantities[i])
+        note = notes[i]
 
         # Fetch item details from the database
         item = Items.query.get(item_id)
         if not item:
             continue  # Handle case where item is not found
 
-        # Create and add PO Detail
+        # Create and add ReportDetails
         report_detail = ReportDetails(report_id=report.id, item_id=item_id, quantity=quantity, note=note)
         db.session.add(report_detail)
+        db.session.commit()  # Commit to generate ID for each report_detail
+
+        # Collect the newly created report_detail IDs
+        report_details_ids.append(report_detail.id)
+
+    # Execute a raw SQL query to insert data into netsuite_upload
+    for report_detail_id in report_details_ids:
+        sql = text('INSERT INTO netsuite_upload (report_details_id, netsuite_update) VALUES (:report_details_id, :netsuite_update)')
+        db.session.execute(
+            sql,
+            {'report_details_id': report_detail_id, 'netsuite_update': 0}
+        )
 
     db.session.commit()
     return redirect(url_for('review', report_id=report.id))
@@ -250,7 +276,52 @@ def edit(report_id):
                            reporters=reporters,
                            departments=departments,
                            items=items)
-#
+
+
+
+
+@app.route('/download', methods=['GET', 'POST'])
+def download():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if check_password_hash(PASSWORD_HASH, password):
+            # Connect to the database
+            conn = sqlite3.connect('your_database.db')  # Update with your database path
+            query = """
+            SELECT details."report_id" AS "Report ID",
+                    items."item_name" AS "Item",
+                    items."alt_sku" AS "Old SKU",
+                    items."description" AS "Description",
+                    details."quantity" AS "Quantity",
+                    details."note" AS "Note",
+                    netsuite_upload."netsuite_update" AS "Netsuite Adj. File Downloaded"
+            FROM report_details AS details
+            LEFT JOIN items
+            ON details."item_id" = items."id"
+            LEFT JOIN netsuite_upload
+            ON details."id" = netsuite_upload."report_details_id"
+            WHERE netsuite_upload."netsuite_update" = 0
+            ;
+            """
+            df = pd.read_sql_query(query, conn)
+            conn.close()
+
+            # Convert dataframe to CSV
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+
+            # Mark the records as updated in the database
+            conn = sqlite3.connect('your_database.db')
+            conn.execute('UPDATE netsuite_upload SET netsuite_update = 1 WHERE netsuite_update = 0')
+            conn.commit()
+            conn.close()
+
+            return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', attachment_filename='report.csv', as_attachment=True)
+        else:
+            return 'Invalid password', 403
+
+    return render_template('download.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5010, debug=True)
